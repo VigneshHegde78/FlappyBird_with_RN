@@ -1,56 +1,19 @@
-import { FontAwesome6, MaterialIcons } from "@expo/vector-icons";
+import { FontAwesome6 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
 	Dimensions,
 	Image,
 	ImageBackground,
-	Modal,
 	StatusBar,
-	Text,
 	TouchableOpacity,
 	TouchableWithoutFeedback,
 	View,
 } from "react-native";
-
-// Digit images 0-9 for modal score display
-const scoreImages: { [key: number]: any } = {
-	0: require("../assets/images/scores/0.png"),
-	1: require("../assets/images/scores/1.png"),
-	2: require("../assets/images/scores/2.png"),
-	3: require("../assets/images/scores/3.png"),
-	4: require("../assets/images/scores/4.png"),
-	5: require("../assets/images/scores/5.png"),
-	6: require("../assets/images/scores/6.png"),
-	7: require("../assets/images/scores/7.png"),
-	8: require("../assets/images/scores/8.png"),
-	9: require("../assets/images/scores/9.png"),
-};
-
-// Helpers to show in-game two-digit text with leading zero
-const getTwoDigits = (n: number): [number, number] => {
-	const tens = Math.floor(n / 10);
-	const units = n % 10;
-	return tens === 0 ? [0, units] : [tens, units];
-};
-
-function TwoDigitDisplay({
-	value,
-	size = 50,
-	color = "white",
-}: {
-	value: number;
-	size?: number;
-	color?: string;
-}) {
-	const [d1, d2] = getTwoDigits(value);
-	return (
-		<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-			<Text style={{ fontSize: size, color, fontWeight: "bold" }}>{d1}</Text>
-			<Text style={{ fontSize: size, color, fontWeight: "bold" }}>{d2}</Text>
-		</View>
-	);
-}
+import { Bird } from "./components/Bird";
+import { GameOverModal } from "./components/GameOverModal";
+import { PipePair } from "./components/PipePair";
+import { scoreImages } from "./utils/digits";
 
 export default function App() {
 	// 1. Get Screen Dimensions so we know where the "floor" is
@@ -300,171 +263,29 @@ export default function App() {
 					}}
 				>
 					{/* The Bird */}
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: birdSize,
-							height: birdSize,
-							bottom: birdBottom, // This changes constantly to move the bird
-							left: screenWidth / 2 - birdSize / 2, // Center horizontally
-						}}
-					>
-						<Image
-							source={require("../assets/images/birdy.png")}
-							resizeMode="contain"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
+					<Bird
+						birdBottom={birdBottom}
+						birdSize={birdSize}
+						screenWidth={screenWidth}
+					/>
 
-					{/* Pipes (images) */}
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: pipeWidth,
-							height: pipeBottom,
-							left: pipeLeft,
-							bottom: 0,
-						}}
-					>
-						<Image
-							source={require("../assets/images/pipe.png")}
-							resizeMode="stretch"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: pipeWidth,
-							height: capHeight,
-							left: pipeLeft,
-							bottom: pipeBottom,
-						}}
-					>
-						<Image
-							source={require("../assets/images/cap.png")}
-							resizeMode="stretch"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: pipeWidth,
-							height: screenHeight - (pipeBottom + gap),
-							left: pipeLeft,
-							top: 0,
-						}}
-					>
-						<Image
-							source={require("../assets/images/pipe.png")}
-							resizeMode="stretch"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: pipeWidth,
-							height: screenHeight - (pipeBottom + gap),
-							left: pipeLeft,
-							top: 0,
-						}}
-					>
-						<Image
-							source={require("../assets/images/pipe.png")}
-							resizeMode="stretch"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: pipeWidth,
-							height: capHeight,
-							left: pipeLeft,
-							top: screenHeight - (pipeBottom + gap) - capHeight,
-							transform: [{ rotate: "180deg" }],
-						}}
-					>
-						<Image
-							source={require("../assets/images/cap.png")}
-							resizeMode="stretch"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
-
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: pipeWidth,
-							height: pipeBottom2,
-							left: pipeLeft2,
-							bottom: 0,
-						}}
-					>
-						<Image
-							source={require("../assets/images/pipe.png")}
-							resizeMode="stretch"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: pipeWidth,
-							height: capHeight,
-							left: pipeLeft2,
-							bottom: pipeBottom2,
-						}}
-					>
-						<Image
-							source={require("../assets/images/cap.png")}
-							resizeMode="stretch"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: pipeWidth,
-							height: screenHeight - (pipeBottom2 + gap),
-							left: pipeLeft2,
-							top: 0,
-						}}
-					>
-						<Image
-							source={require("../assets/images/pipe.png")}
-							resizeMode="stretch"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
-					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							width: pipeWidth,
-							height: capHeight,
-							left: pipeLeft2,
-							top: screenHeight - (pipeBottom2 + gap) - capHeight,
-							transform: [{ rotate: "180deg" }],
-						}}
-					>
-						<Image
-							source={require("../assets/images/cap.png")}
-							resizeMode="stretch"
-							style={{ width: "100%", height: "100%" }}
-						/>
-					</View>
+					{/* Pipes */}
+					<PipePair
+						left={pipeLeft}
+						bottom={pipeBottom}
+						pipeWidth={pipeWidth}
+						gap={gap}
+						capHeight={capHeight}
+						screenHeight={screenHeight}
+					/>
+					<PipePair
+						left={pipeLeft2}
+						bottom={pipeBottom2}
+						pipeWidth={pipeWidth}
+						gap={gap}
+						capHeight={capHeight}
+						screenHeight={screenHeight}
+					/>
 
 					{/* Start Text */}
 					{!gameHasStarted && !isGameOver && (
@@ -492,16 +313,25 @@ export default function App() {
 
 					{/* Score */}
 					{gameHasStarted && (
-						<View style={{ position: "absolute", top: 100 }}>
+						<View
+							style={{
+								position: "absolute",
+								top: 130,
+								flexDirection: "row",
+								gap: 4,
+							}}
+						>
+							{score >= 10 && (
+								<Image
+									source={scoreImages[score >= 10 ? Math.floor(score / 10) : 0]}
+									resizeMode="contain"
+									style={{ width: 30, height: 45 }}
+								/>
+							)}
 							<Image
-								source={scoreImages[score]}
+								source={scoreImages[score >= 10 ? score % 10 : score]}
 								resizeMode="contain"
-								style={{
-									width: 120,
-									height: 45,
-									justifyContent: "center",
-									alignItems: "center",
-								}}
+								style={{ width: 30, height: 45 }}
 							/>
 						</View>
 					)}
@@ -525,185 +355,38 @@ export default function App() {
 						</TouchableOpacity>
 					)}
 
-					{/* Leaderboard Button */}
-					<TouchableOpacity
-						onPress={() => setShowBestModal(true)}
-						style={{
-							position: "absolute",
-							top: 35,
-							right: 20,
-							paddingRight: 8,
-							paddingTop: 2,
-							gap: 0,
-							alignItems: "center",
-						}}
-					>
-						<MaterialIcons name="leaderboard" size={32} color="gold" />
-						<Text style={{ color: "white", fontWeight: "bold", fontSize: 14 }}>
-							BEST
-						</Text>
-					</TouchableOpacity>
-				</ImageBackground>
-			</TouchableWithoutFeedback>
-
-			{/* Game Over Modal with Scores */}
-			<Modal
-				visible={isGameOver || showBestModal}
-				transparent
-				animationType="fade"
-				onRequestClose={() => {
-					if (isGameOver) {
-						restart();
-					} else {
-						setShowBestModal(false);
-					}
-				}}
-			>
-				<TouchableOpacity
-					onPress={() => {
-						if (isGameOver) {
-							restart();
-						} else {
-							setShowBestModal(false);
-						}
-					}}
-					style={{
-						flex: 1,
-						backgroundColor: "rgba(0,0,0,0.5)",
-						justifyContent: "center",
-						alignItems: "center",
-						paddingHorizontal: 20,
-					}}
-					activeOpacity={1}
-				>
-					<View
-						style={{
-							alignItems: "center",
-							gap: 2,
-							width: "100%",
-						}}
-					>
-						{isGameOver && (
-							<Image source={require("../assets/images/gameover.png")} />
-						)}
-						<View
+					{/* BEST Button */}
+					{!isGameOver && (
+						<TouchableOpacity
+							onPress={() => setShowBestModal(true)}
 							style={{
-								alignItems: "center",
+								position: "absolute",
+								top: 35,
+								right: 20,
+								padding: 8,
 							}}
 						>
-							<Image
-								source={require("../assets/images/board.png")}
-								resizeMode="contain"
-								style={{
-									width: 320,
-									height: 200,
-									alignItems: "center",
-									justifyContent: "center",
-								}}
-							/>
+							<FontAwesome6 name="trophy" size={32} color="gold" />
+						</TouchableOpacity>
+					)}
 
-							{/* Medal */}
-							{score > bestScore && score > 0 && (
-								<Image
-									source={require("../assets/images/m1.png")}
-									resizeMode="contain"
-									style={{
-										position: "absolute",
-										top: 78,
-										left: 44,
-										width: 55,
-										height: 55,
-									}}
-								/>
-							)}
-
-							{/* Medal */}
-							{score === bestScore && score > 0 && (
-								<Image
-									source={require("../assets/images/m2.png")}
-									resizeMode="contain"
-									style={{
-										position: "absolute",
-										top: 78,
-										left: 44,
-										width: 55,
-										height: 55,
-									}}
-								/>
-							)}
-
-							{/* Medal */}
-							{score < bestScore && score >= 0 && (
-								<Image
-									source={require("../assets/images/m3.png")}
-									resizeMode="contain"
-									style={{
-										position: "absolute",
-										top: 78,
-										left: 44,
-										width: 55,
-										height: 55,
-									}}
-								/>
-							)}
-
-							{/* Current Score */}
-							<View
-								style={{
-									flexDirection: "row",
-									gap: 2,
-									position: "absolute",
-									top: 62,
-									right: 45,
-								}}
-							>
-								<Image
-									source={scoreImages[score >= 10 ? Math.floor(score / 10) : 0]}
-									resizeMode="contain"
-									style={{ width: 18, height: 30 }}
-								/>
-								<Image
-									source={
-										scoreImages[score >= 10 ? Math.floor(score % 10) : score]
-									}
-									resizeMode="contain"
-									style={{ width: 18, height: 30 }}
-								/>
-							</View>
-
-							{/* Best Score */}
-							<View
-								style={{
-									flexDirection: "row",
-									gap: 2,
-									position: "absolute",
-									top: 118,
-									right: 45,
-								}}
-							>
-								<Image
-									source={
-										scoreImages[
-											bestScore >= 10 ? Math.floor(bestScore / 10) : 0
-										]
-									}
-									resizeMode="contain"
-									style={{ width: 18, height: 30 }}
-								/>
-								<Image
-									source={
-										scoreImages[
-											bestScore >= 10 ? Math.floor(bestScore % 10) : bestScore
-										]
-									}
-									resizeMode="contain"
-									style={{ width: 18, height: 30 }}
-								/>
-							</View>
-						</View>
-					</View>
-				</TouchableOpacity>
-			</Modal>
+					{/* Game Over Modal with Scores */}
+					<GameOverModal
+						visible={isGameOver || showBestModal}
+						isGameOver={isGameOver}
+						onRequestClose={() => {
+							if (isGameOver) restart();
+							else setShowBestModal(false);
+						}}
+						onTap={() => {
+							if (isGameOver) restart();
+							else setShowBestModal(false);
+						}}
+						score={score}
+						bestScore={bestScore}
+					/>
+				</ImageBackground>
+			</TouchableWithoutFeedback>
 
 			<ImageBackground
 				source={require("../assets/images/ground.png")}
