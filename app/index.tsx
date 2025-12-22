@@ -1,6 +1,6 @@
-import { FontAwesome6 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useState } from "react";
+import { Audio } from "expo-av";
+import React, { useEffect, useRef, useState } from "react";
 import {
 	Dimensions,
 	Image,
@@ -10,41 +10,57 @@ import {
 	TouchableWithoutFeedback,
 	View,
 } from "react-native";
-import { Bird } from "./components/Bird";
-import { GameOverModal } from "./components/GameOverModal";
-import { PipePair } from "./components/PipePair";
-import { scoreImages } from "./utils/digits";
+import { Bird } from "../components/Bird";
+import { GameOverModal } from "../components/GameOverModal";
+import { PipePair } from "../components/PipePair";
+import { scoreImages } from "../utils/digits";
 
 export default function App() {
-	// 1. Get Screen Dimensions so we know where the "floor" is
+	// 1. Get Screen Dimensions
 	const screenWidth = Dimensions.get("screen").width;
 	const screenHeight = Dimensions.get("screen").height;
 
 	// 2. Game State
-	// The bird starts in the middle of the screen (height / 2)
 	const [birdBottom, setBirdBottom] = useState(screenHeight / 2);
 	const [gameHasStarted, setGameHasStarted] = useState(false);
 	const [score, setScore] = useState(0);
 
-	// Constants
-	const gravity = 7; // How fast it falls
-	const jumpHeight = 50; // How high it jumps
-	const birdSize = 55; // Size of the bird square
+	// --- NEW PHYSICS CONSTANTS & REF ---
+	const gravity = 1.0; // Gravity acts as acceleration downwards
+	const jumpStrength = 10; // Initial upward velocity when jumping
+	const birdVelocity = useRef(0); // Tracks current vertical speed
+	// -----------------------------------
 
-	// Pipes
+	const birdSize = 55;
 	const pipeWidth = 70;
-	const gap = 200; // gap between top and bottom pipe
+	const gap =
+		score > 50
+			? 200
+			: score > 40
+			? 210
+			: score > 30
+			? 220
+			: score > 20
+			? 230
+			: score > 10
+			? 240
+			: 250;
 	const pipeSpeed = 5;
 	const capHeight = 25;
-	const pipeHorizontalGap = screenWidth / 2 + 100; // consistent horizontal spacing between pipe pairs
+	const pipeHorizontalGap = screenWidth / 2 + 120;
+
 	const [pipeLeft, setPipeLeft] = useState(screenWidth);
 	const [pipeLeft2, setPipeLeft2] = useState(screenWidth + pipeHorizontalGap);
+
 	const randomBottom = () =>
 		Math.floor(Math.random() * (screenHeight - gap - 200)) + 100;
+
 	const [pipeBottom, setPipeBottom] = useState(randomBottom());
 	const [pipeBottom2, setPipeBottom2] = useState(randomBottom());
+
 	const [isGameOver, setIsGameOver] = useState(false);
 	const [isPaused, setIsPaused] = useState(false);
+	const [isTapping, setIsTapping] = useState(false);
 	const [passed1, setPassed1] = useState(false);
 	const [passed2, setPassed2] = useState(false);
 
@@ -52,7 +68,7 @@ export default function App() {
 	const [bestScore, setBestScore] = useState(0);
 	const [showBestModal, setShowBestModal] = useState(false);
 
-	// Load best score from storage on mount
+	// Load best score
 	useEffect(() => {
 		const loadBest = async () => {
 			try {
@@ -65,7 +81,6 @@ export default function App() {
 		loadBest();
 	}, []);
 
-	// Save best score to storage
 	const saveBestScore = async (newBest: number) => {
 		try {
 			await AsyncStorage.setItem("flappyBirdBestScore", String(newBest));
@@ -74,19 +89,80 @@ export default function App() {
 		}
 	};
 
-	// 3. The "Game Loop" - This simulates Gravity
+	// Sound setup
+	const jumpSound = useRef<Audio.Sound | null>(null);
+	const dieSound = useRef<Audio.Sound | null>(null);
+	const hitSound = useRef<Audio.Sound | null>(null);
+	const pointSound = useRef<Audio.Sound | null>(null);
+
 	useEffect(() => {
-		// Use a numeric timer id and only depend on `gameHasStarted` so
-		// the interval isn't recreated on every `birdBottom` change.
+		let isMounted = true;
+		const loadSounds = async () => {
+			try {
+				const [jump, die, hit, point] = await Promise.all([
+					Audio.Sound.createAsync(require("../assets/audio/wing.wav")),
+					Audio.Sound.createAsync(require("../assets/audio/die.wav")),
+					Audio.Sound.createAsync(require("../assets/audio/hit.wav")),
+					Audio.Sound.createAsync(require("../assets/audio/point.wav")),
+				]);
+				if (isMounted) {
+					jumpSound.current = jump.sound;
+					dieSound.current = die.sound;
+					hitSound.current = hit.sound;
+					pointSound.current = point.sound;
+				}
+			} catch (error) {
+				console.warn("Failed to load sounds:", error);
+			}
+		};
+		loadSounds();
+		return () => {
+			isMounted = false;
+			jumpSound.current?.unloadAsync();
+			dieSound.current?.unloadAsync();
+			hitSound.current?.unloadAsync();
+			pointSound.current?.unloadAsync();
+		};
+	}, []);
+
+	const playJumpSound = async () => {
+		try {
+			await jumpSound.current?.replayAsync();
+		} catch (e) {}
+	};
+	const playDieSound = async () => {
+		try {
+			await dieSound.current?.replayAsync();
+		} catch (e) {}
+	};
+	const playHitSound = async () => {
+		try {
+			await hitSound.current?.replayAsync();
+		} catch (e) {}
+	};
+	const playPointSound = async () => {
+		try {
+			await pointSound.current?.replayAsync();
+		} catch (e) {}
+	};
+
+	// 3. UPDATED GAME LOOP (Physics)
+	useEffect(() => {
 		let gameTimerId: number | undefined;
 
 		if (gameHasStarted && !isPaused && !isGameOver) {
 			gameTimerId = setInterval(() => {
+				// Apply gravity to velocity
+				birdVelocity.current -= gravity;
+
 				setBirdBottom((prevBottom) => {
-					const newBottom = prevBottom - gravity;
+					// Apply velocity to position
+					const newBottom = prevBottom + birdVelocity.current;
+
+					// Prevent falling below floor (simple clamp)
 					if (newBottom <= 0) {
-						if (gameTimerId) clearInterval(gameTimerId);
 						return 0;
+						// Note: collision detection will handle the game over logic
 					}
 					return newBottom;
 				});
@@ -103,24 +179,22 @@ export default function App() {
 	// Pipes movement
 	useEffect(() => {
 		let pipeTimerId: number | undefined;
-
 		if (gameHasStarted && !isPaused && !isGameOver) {
 			pipeTimerId = setInterval(() => {
 				setPipeLeft((p) => p - pipeSpeed);
 				setPipeLeft2((p) => p - pipeSpeed);
 			}, 30);
 		}
-
 		return () => {
 			if (pipeTimerId) clearInterval(pipeTimerId);
 		};
 	}, [gameHasStarted, isPaused, isGameOver]);
 
-	// Reset pipes when off screen and score when passing
+	// Reset pipes and scoring
 	useEffect(() => {
-		// keep consistent spacing by spawning off-screen to the right of the rightmost pipe
 		let nextPipeLeft = pipeLeft;
 		let nextPipeLeft2 = pipeLeft2;
+
 		if (pipeLeft < -pipeWidth) {
 			const newX = Math.max(
 				screenWidth,
@@ -128,9 +202,7 @@ export default function App() {
 			);
 			nextPipeLeft = newX;
 			setPipeLeft(newX);
-			setPipeBottom(
-				Math.floor(Math.random() * (screenHeight - gap - 200)) + 100
-			);
+			setPipeBottom(randomBottom());
 			setPassed1(false);
 		}
 		if (pipeLeft2 < -pipeWidth) {
@@ -140,21 +212,21 @@ export default function App() {
 			);
 			nextPipeLeft2 = newX2;
 			setPipeLeft2(newX2);
-			setPipeBottom2(
-				Math.floor(Math.random() * (screenHeight - gap - 200)) + 100
-			);
+			setPipeBottom2(randomBottom());
 			setPassed2(false);
 		}
-		// scoring when pipe passes the bird center
+
+		// Scoring
 		const birdLeft = screenWidth / 2 - birdSize / 2;
-		// score once per pipe pair when its trailing edge passes the bird
 		if (pipeLeft + pipeWidth < birdLeft && !passed1) {
 			setPassed1(true);
 			setScore((s) => s + 1);
+			playPointSound();
 		}
 		if (pipeLeft2 + pipeWidth < birdLeft && !passed2) {
 			setPassed2(true);
 			setScore((s) => s + 1);
+			playPointSound();
 		}
 	}, [pipeLeft, pipeLeft2, screenWidth, screenHeight, passed1, passed2]);
 
@@ -166,15 +238,12 @@ export default function App() {
 
 		const checkCollision = (pLeft: number, pBottom: number) => {
 			const pRight = pLeft + pipeWidth;
-			// bottom pipe: from bottom (0) up to pBottom
 			const bottomPipeTop = pBottom;
-			// top pipe: from top down to (screenHeight - (pBottom + gap))
 			const topPipeBottom = pBottom + gap;
 
 			const horizontalOverlap = !(birdRight < pLeft || birdLeft > pRight);
 			if (!horizontalOverlap) return false;
 
-			// if bird is below bottomPipeTop (hits bottom pipe) OR above topPipeBottom (hits top pipe)
 			if (birdBottom < bottomPipeTop || birdTop > topPipeBottom) {
 				return true;
 			}
@@ -183,11 +252,14 @@ export default function App() {
 
 		if (
 			checkCollision(pipeLeft, pipeBottom) ||
-			checkCollision(pipeLeft2, pipeBottom2) ||
-			birdBottom <= 0 ||
-			birdBottom + birdSize >= screenHeight - 100
+			checkCollision(pipeLeft2, pipeBottom2)
 		) {
-			// Game over
+			playHitSound();
+			setGameHasStarted(false);
+			setIsGameOver(true);
+		} else if (birdBottom <= 0 || birdBottom + birdSize >= screenHeight - 50) {
+			// Hit ground or ceiling
+			playHitSound();
 			setGameHasStarted(false);
 			setIsGameOver(true);
 		}
@@ -201,23 +273,36 @@ export default function App() {
 		screenHeight,
 	]);
 
-	// Show high score modal when game ends
 	useEffect(() => {
 		if (isGameOver) {
 			handleGameOver();
 		}
 	}, [isGameOver]);
 
-	// 4. The Jump Function
+	useEffect(() => {
+		if (showBestModal && gameHasStarted && !isGameOver) {
+			setIsPaused(true);
+		}
+	}, [showBestModal, gameHasStarted, isGameOver]);
+
+	// 4. UPDATED JUMP FUNCTION
 	const jump = () => {
 		if (isGameOver || isPaused) return;
+
+		playJumpSound();
+
 		if (!gameHasStarted) {
 			setGameHasStarted(true);
 			setIsPaused(false);
-			return;
+			// Initialize velocity on first tap
+			birdVelocity.current = jumpStrength;
+		} else {
+			// Set upward velocity (Physics jump)
+			birdVelocity.current = jumpStrength;
 		}
-		// Move the bird UP
-		setBirdBottom((b) => b + jumpHeight);
+
+		setIsTapping(true);
+		setTimeout(() => setIsTapping(false), 200);
 	};
 
 	const restart = () => {
@@ -225,6 +310,10 @@ export default function App() {
 		setIsPaused(false);
 		setScore(0);
 		setBirdBottom(screenHeight / 2);
+
+		// Reset velocity
+		birdVelocity.current = 0;
+
 		setPipeLeft(screenWidth);
 		setPipeLeft2(screenWidth + pipeHorizontalGap);
 		setPipeBottom(randomBottom());
@@ -241,11 +330,26 @@ export default function App() {
 	};
 
 	const handleGameOver = () => {
+		playDieSound();
 		if (score > bestScore) {
 			setBestScore(score);
 			saveBestScore(score);
 		}
 		setShowBestModal(true);
+	};
+
+	const resetScore = async ({
+		score,
+		bestScore,
+	}: {
+		score: number;
+		bestScore: number;
+	}) => {
+		// Implement score reset logic here
+		score = 0;
+		bestScore = 0;
+		await AsyncStorage.removeItem("flappyBirdBestScore");
+		setBestScore(0);
 	};
 
 	return (
@@ -262,11 +366,13 @@ export default function App() {
 						alignItems: "center",
 					}}
 				>
-					{/* The Bird */}
+					{/* Bird */}
 					<Bird
 						birdBottom={birdBottom}
 						birdSize={birdSize}
 						screenWidth={screenWidth}
+						isPaused={isPaused}
+						isTapping={isTapping}
 					/>
 
 					{/* Pipes */}
@@ -287,7 +393,7 @@ export default function App() {
 						screenHeight={screenHeight}
 					/>
 
-					{/* Start Text */}
+					{/* Start Screen */}
 					{!gameHasStarted && !isGameOver && (
 						<View
 							style={{
@@ -311,79 +417,88 @@ export default function App() {
 						</View>
 					)}
 
-					{/* Score */}
+					{/* Score Display */}
 					{gameHasStarted && (
 						<View
 							style={{
 								position: "absolute",
-								top: 130,
+								top: 135,
 								flexDirection: "row",
 								gap: 4,
 							}}
 						>
 							{score >= 10 && (
 								<Image
-									source={scoreImages[score >= 10 ? Math.floor(score / 10) : 0]}
+									source={scoreImages[Math.floor(score / 10)]}
 									resizeMode="contain"
 									style={{ width: 30, height: 45 }}
 								/>
 							)}
 							<Image
-								source={scoreImages[score >= 10 ? score % 10 : score]}
+								source={scoreImages[score % 10]}
 								resizeMode="contain"
 								style={{ width: 30, height: 45 }}
 							/>
 						</View>
 					)}
 
-					{/* Pause/Resume Button */}
+					{/* Controls */}
 					{gameHasStarted && !isGameOver && (
 						<TouchableOpacity
 							onPress={togglePause}
 							style={{
 								position: "absolute",
-								top: 35,
-								left: 20,
+								top: 20,
+								left: 15,
 								padding: 8,
 							}}
 						>
-							<FontAwesome6
-								name={isPaused ? "play" : "pause"}
-								size={32}
-								color="white"
+							<Image
+								source={
+									isPaused
+										? require("../assets/images/play.png")
+										: require("../assets/images/pause.png")
+								}
+								resizeMode="contain"
+								style={{ width: 48, height: 48 }}
 							/>
 						</TouchableOpacity>
 					)}
 
-					{/* BEST Button */}
 					{!isGameOver && (
 						<TouchableOpacity
 							onPress={() => setShowBestModal(true)}
 							style={{
 								position: "absolute",
-								top: 35,
-								right: 20,
+								top: 20,
+								right: 15,
 								padding: 8,
 							}}
 						>
-							<FontAwesome6 name="trophy" size={32} color="gold" />
+							<Image
+								source={require("../assets/images/trophy.png")}
+								resizeMode="contain"
+								style={{ width: 50, height: 50 }}
+							/>
 						</TouchableOpacity>
 					)}
 
-					{/* Game Over Modal with Scores */}
 					<GameOverModal
 						visible={isGameOver || showBestModal}
 						isGameOver={isGameOver}
 						onRequestClose={() => {
 							if (isGameOver) restart();
-							else setShowBestModal(false);
+							else {setShowBestModal(false); setIsPaused(false);}
 						}}
 						onTap={() => {
 							if (isGameOver) restart();
-							else setShowBestModal(false);
+							else {setShowBestModal(false); setIsPaused(false);}
 						}}
 						score={score}
 						bestScore={bestScore}
+						onResetScore={resetScore}
+						isPaused={isPaused}
+						onPauseChange={setIsPaused}
 					/>
 				</ImageBackground>
 			</TouchableWithoutFeedback>
