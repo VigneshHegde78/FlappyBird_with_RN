@@ -1,14 +1,56 @@
-import { FontAwesome6 } from "@expo/vector-icons";
+import { FontAwesome6, MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
 	Dimensions,
 	Image,
 	ImageBackground,
+	Modal,
+	StatusBar,
 	Text,
 	TouchableOpacity,
 	TouchableWithoutFeedback,
 	View,
 } from "react-native";
+
+// Digit images 0-9 for modal score display
+const scoreImages: { [key: number]: any } = {
+	0: require("../assets/images/scores/0.png"),
+	1: require("../assets/images/scores/1.png"),
+	2: require("../assets/images/scores/2.png"),
+	3: require("../assets/images/scores/3.png"),
+	4: require("../assets/images/scores/4.png"),
+	5: require("../assets/images/scores/5.png"),
+	6: require("../assets/images/scores/6.png"),
+	7: require("../assets/images/scores/7.png"),
+	8: require("../assets/images/scores/8.png"),
+	9: require("../assets/images/scores/9.png"),
+};
+
+// Helpers to show in-game two-digit text with leading zero
+const getTwoDigits = (n: number): [number, number] => {
+	const tens = Math.floor(n / 10);
+	const units = n % 10;
+	return tens === 0 ? [0, units] : [tens, units];
+};
+
+function TwoDigitDisplay({
+	value,
+	size = 50,
+	color = "white",
+}: {
+	value: number;
+	size?: number;
+	color?: string;
+}) {
+	const [d1, d2] = getTwoDigits(value);
+	return (
+		<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+			<Text style={{ fontSize: size, color, fontWeight: "bold" }}>{d1}</Text>
+			<Text style={{ fontSize: size, color, fontWeight: "bold" }}>{d2}</Text>
+		</View>
+	);
+}
 
 export default function App() {
 	// 1. Get Screen Dimensions so we know where the "floor" is
@@ -24,7 +66,7 @@ export default function App() {
 	// Constants
 	const gravity = 7; // How fast it falls
 	const jumpHeight = 50; // How high it jumps
-	const birdSize = 50; // Size of the bird square
+	const birdSize = 55; // Size of the bird square
 
 	// Pipes
 	const pipeWidth = 70;
@@ -40,6 +82,34 @@ export default function App() {
 	const [pipeBottom2, setPipeBottom2] = useState(randomBottom());
 	const [isGameOver, setIsGameOver] = useState(false);
 	const [isPaused, setIsPaused] = useState(false);
+	const [passed1, setPassed1] = useState(false);
+	const [passed2, setPassed2] = useState(false);
+
+	// Best score state
+	const [bestScore, setBestScore] = useState(0);
+	const [showBestModal, setShowBestModal] = useState(false);
+
+	// Load best score from storage on mount
+	useEffect(() => {
+		const loadBest = async () => {
+			try {
+				const stored = await AsyncStorage.getItem("flappyBirdBestScore");
+				if (stored) setBestScore(Number(stored));
+			} catch (error) {
+				console.error("Failed to load best score:", error);
+			}
+		};
+		loadBest();
+	}, []);
+
+	// Save best score to storage
+	const saveBestScore = async (newBest: number) => {
+		try {
+			await AsyncStorage.setItem("flappyBirdBestScore", String(newBest));
+		} catch (error) {
+			console.error("Failed to save best score:", error);
+		}
+	};
 
 	// 3. The "Game Loop" - This simulates Gravity
 	useEffect(() => {
@@ -98,6 +168,7 @@ export default function App() {
 			setPipeBottom(
 				Math.floor(Math.random() * (screenHeight - gap - 200)) + 100
 			);
+			setPassed1(false);
 		}
 		if (pipeLeft2 < -pipeWidth) {
 			const newX2 = Math.max(
@@ -109,24 +180,20 @@ export default function App() {
 			setPipeBottom2(
 				Math.floor(Math.random() * (screenHeight - gap - 200)) + 100
 			);
+			setPassed2(false);
 		}
 		// scoring when pipe passes the bird center
 		const birdLeft = screenWidth / 2 - birdSize / 2;
-		// score for pipe 1
-		if (
-			pipeLeft + pipeWidth < birdLeft &&
-			pipeLeft + pipeWidth > birdLeft - pipeSpeed
-		) {
+		// score once per pipe pair when its trailing edge passes the bird
+		if (pipeLeft + pipeWidth < birdLeft && !passed1) {
+			setPassed1(true);
 			setScore((s) => s + 1);
 		}
-		// score for pipe 2
-		if (
-			pipeLeft2 + pipeWidth < birdLeft &&
-			pipeLeft2 + pipeWidth > birdLeft - pipeSpeed
-		) {
+		if (pipeLeft2 + pipeWidth < birdLeft && !passed2) {
+			setPassed2(true);
 			setScore((s) => s + 1);
 		}
-	}, [pipeLeft, pipeLeft2, screenWidth, screenHeight]);
+	}, [pipeLeft, pipeLeft2, screenWidth, screenHeight, passed1, passed2]);
 
 	// Collision detection
 	useEffect(() => {
@@ -171,6 +238,13 @@ export default function App() {
 		screenHeight,
 	]);
 
+	// Show high score modal when game ends
+	useEffect(() => {
+		if (isGameOver) {
+			handleGameOver();
+		}
+	}, [isGameOver]);
+
 	// 4. The Jump Function
 	const jump = () => {
 		if (isGameOver || isPaused) return;
@@ -181,7 +255,6 @@ export default function App() {
 		}
 		// Move the bird UP
 		setBirdBottom((b) => b + jumpHeight);
-		setScore((s) => s + 1); // Fake score for fun
 	};
 
 	const restart = () => {
@@ -194,6 +267,9 @@ export default function App() {
 		setPipeBottom(randomBottom());
 		setPipeBottom2(randomBottom());
 		setGameHasStarted(false);
+		setPassed1(false);
+		setPassed2(false);
+		setShowBestModal(false);
 	};
 
 	const togglePause = () => {
@@ -201,8 +277,17 @@ export default function App() {
 		setIsPaused((prev) => !prev);
 	};
 
+	const handleGameOver = () => {
+		if (score > bestScore) {
+			setBestScore(score);
+			saveBestScore(score);
+		}
+		setShowBestModal(true);
+	};
+
 	return (
 		<View style={{ flex: 1 }}>
+			<StatusBar hidden={true} />
 			<TouchableWithoutFeedback onPress={jump}>
 				<ImageBackground
 					source={require("../assets/images/bg_day.png")}
@@ -214,25 +299,6 @@ export default function App() {
 						alignItems: "center",
 					}}
 				>
-					{/* Pause/Resume Button */}
-					{gameHasStarted && !isGameOver && (
-						<TouchableOpacity
-							onPress={togglePause}
-							style={{
-								position: "absolute",
-								top: 35,
-								left: 20,
-								padding: 8,
-							}}
-						>
-							<FontAwesome6
-								name={isPaused ? "play" : "pause"}
-								size={32}
-								color="white"
-							/>
-						</TouchableOpacity>
-					)}
-
 					{/* The Bird */}
 					<View
 						pointerEvents="none"
@@ -407,57 +473,238 @@ export default function App() {
 								flex: 1,
 								justifyContent: "center",
 								alignItems: "center",
+								position: "absolute",
+								top: screenHeight / 2 - 250,
+								gap: 100,
 							}}
 						>
-							<Text
-								style={{ fontSize: 30, fontWeight: "bold", color: "white" }}
-							>
-								Tap to Start
-							</Text>
+							<Image
+								source={require("../assets/images/get_ready.png")}
+								resizeMode="contain"
+							/>
+							<Image
+								source={require("../assets/images/tap.png")}
+								resizeMode="contain"
+								style={{ width: 150, height: 130 }}
+							/>
 						</View>
 					)}
 
 					{/* Score */}
 					{gameHasStarted && (
-						<Text
-							style={{
-								position: "absolute",
-								top: 100,
-								fontSize: 50,
-								color: "white",
-								fontWeight: "bold",
-							}}
-						>
-							{score}
-						</Text>
+						<View style={{ position: "absolute", top: 100 }}>
+							<Image
+								source={scoreImages[score]}
+								resizeMode="contain"
+								style={{
+									width: 120,
+									height: 45,
+									justifyContent: "center",
+									alignItems: "center",
+								}}
+							/>
+						</View>
 					)}
 
-					{/* Game Over overlay */}
-					{isGameOver && (
-						<TouchableWithoutFeedback onPress={restart}>
-							<View
-								style={{
-									position: "absolute",
-									alignItems: "center",
-									justifyContent: "center",
-									width: screenWidth,
-									height: screenHeight,
-									backgroundColor: "rgba(0,0,0,0.4)",
-								}}
-							>
-								<Text
-									style={{ fontSize: 48, color: "white", fontWeight: "bold" }}
-								>
-									Game Over
-								</Text>
-								<Text style={{ fontSize: 24, color: "white", marginTop: 8 }}>
-									Tap to Restart
-								</Text>
-							</View>
-						</TouchableWithoutFeedback>
+					{/* Pause/Resume Button */}
+					{gameHasStarted && !isGameOver && (
+						<TouchableOpacity
+							onPress={togglePause}
+							style={{
+								position: "absolute",
+								top: 35,
+								left: 20,
+								padding: 8,
+							}}
+						>
+							<FontAwesome6
+								name={isPaused ? "play" : "pause"}
+								size={32}
+								color="white"
+							/>
+						</TouchableOpacity>
 					)}
+
+					{/* Leaderboard Button */}
+					<TouchableOpacity
+						onPress={() => setShowBestModal(true)}
+						style={{
+							position: "absolute",
+							top: 35,
+							right: 20,
+							paddingRight: 8,
+							paddingTop: 2,
+							gap: 0,
+							alignItems: "center",
+						}}
+					>
+						<MaterialIcons name="leaderboard" size={32} color="gold" />
+						<Text style={{ color: "white", fontWeight: "bold", fontSize: 14 }}>
+							BEST
+						</Text>
+					</TouchableOpacity>
 				</ImageBackground>
 			</TouchableWithoutFeedback>
+
+			{/* Game Over Modal with Scores */}
+			<Modal
+				visible={isGameOver || showBestModal}
+				transparent
+				animationType="fade"
+				onRequestClose={() => {
+					if (isGameOver) {
+						restart();
+					} else {
+						setShowBestModal(false);
+					}
+				}}
+			>
+				<TouchableOpacity
+					onPress={() => {
+						if (isGameOver) {
+							restart();
+						} else {
+							setShowBestModal(false);
+						}
+					}}
+					style={{
+						flex: 1,
+						backgroundColor: "rgba(0,0,0,0.5)",
+						justifyContent: "center",
+						alignItems: "center",
+						paddingHorizontal: 20,
+					}}
+					activeOpacity={1}
+				>
+					<View
+						style={{
+							alignItems: "center",
+							gap: 2,
+							width: "100%",
+						}}
+					>
+						{isGameOver && (
+							<Image source={require("../assets/images/gameover.png")} />
+						)}
+						<View
+							style={{
+								alignItems: "center",
+							}}
+						>
+							<Image
+								source={require("../assets/images/board.png")}
+								resizeMode="contain"
+								style={{
+									width: 320,
+									height: 200,
+									alignItems: "center",
+									justifyContent: "center",
+								}}
+							/>
+
+							{/* Medal */}
+							{score > bestScore && score > 0 && (
+								<Image
+									source={require("../assets/images/m1.png")}
+									resizeMode="contain"
+									style={{
+										position: "absolute",
+										top: 78,
+										left: 44,
+										width: 55,
+										height: 55,
+									}}
+								/>
+							)}
+
+							{/* Medal */}
+							{score === bestScore && score > 0 && (
+								<Image
+									source={require("../assets/images/m2.png")}
+									resizeMode="contain"
+									style={{
+										position: "absolute",
+										top: 78,
+										left: 44,
+										width: 55,
+										height: 55,
+									}}
+								/>
+							)}
+
+							{/* Medal */}
+							{score < bestScore && score >= 0 && (
+								<Image
+									source={require("../assets/images/m3.png")}
+									resizeMode="contain"
+									style={{
+										position: "absolute",
+										top: 78,
+										left: 44,
+										width: 55,
+										height: 55,
+									}}
+								/>
+							)}
+
+							{/* Current Score */}
+							<View
+								style={{
+									flexDirection: "row",
+									gap: 2,
+									position: "absolute",
+									top: 62,
+									right: 45,
+								}}
+							>
+								<Image
+									source={scoreImages[score >= 10 ? Math.floor(score / 10) : 0]}
+									resizeMode="contain"
+									style={{ width: 18, height: 30 }}
+								/>
+								<Image
+									source={
+										scoreImages[score >= 10 ? Math.floor(score % 10) : score]
+									}
+									resizeMode="contain"
+									style={{ width: 18, height: 30 }}
+								/>
+							</View>
+
+							{/* Best Score */}
+							<View
+								style={{
+									flexDirection: "row",
+									gap: 2,
+									position: "absolute",
+									top: 118,
+									right: 45,
+								}}
+							>
+								<Image
+									source={
+										scoreImages[
+											bestScore >= 10 ? Math.floor(bestScore / 10) : 0
+										]
+									}
+									resizeMode="contain"
+									style={{ width: 18, height: 30 }}
+								/>
+								<Image
+									source={
+										scoreImages[
+											bestScore >= 10 ? Math.floor(bestScore % 10) : bestScore
+										]
+									}
+									resizeMode="contain"
+									style={{ width: 18, height: 30 }}
+								/>
+							</View>
+						</View>
+					</View>
+				</TouchableOpacity>
+			</Modal>
+
 			<ImageBackground
 				source={require("../assets/images/ground.png")}
 				resizeMode="cover"
