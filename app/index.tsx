@@ -1,9 +1,11 @@
+import { FontAwesome6 } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
 	Dimensions,
 	Image,
 	ImageBackground,
 	Text,
+	TouchableOpacity,
 	TouchableWithoutFeedback,
 	View,
 } from "react-native";
@@ -28,15 +30,16 @@ export default function App() {
 	const pipeWidth = 70;
 	const gap = 200; // gap between top and bottom pipe
 	const pipeSpeed = 5;
+	const capHeight = 25;
+	const pipeHorizontalGap = screenWidth / 2 + 100; // consistent horizontal spacing between pipe pairs
 	const [pipeLeft, setPipeLeft] = useState(screenWidth);
-	const [pipeLeft2, setPipeLeft2] = useState(
-		screenWidth + screenWidth / 2 + 100
-	);
+	const [pipeLeft2, setPipeLeft2] = useState(screenWidth + pipeHorizontalGap);
 	const randomBottom = () =>
 		Math.floor(Math.random() * (screenHeight - gap - 200)) + 100;
 	const [pipeBottom, setPipeBottom] = useState(randomBottom());
 	const [pipeBottom2, setPipeBottom2] = useState(randomBottom());
 	const [isGameOver, setIsGameOver] = useState(false);
+	const [isPaused, setIsPaused] = useState(false);
 
 	// 3. The "Game Loop" - This simulates Gravity
 	useEffect(() => {
@@ -44,7 +47,7 @@ export default function App() {
 		// the interval isn't recreated on every `birdBottom` change.
 		let gameTimerId: number | undefined;
 
-		if (gameHasStarted) {
+		if (gameHasStarted && !isPaused && !isGameOver) {
 			gameTimerId = setInterval(() => {
 				setBirdBottom((prevBottom) => {
 					const newBottom = prevBottom - gravity;
@@ -62,13 +65,13 @@ export default function App() {
 				clearInterval(gameTimerId);
 			}
 		};
-	}, [gameHasStarted]);
+	}, [gameHasStarted, isPaused, isGameOver]);
 
 	// Pipes movement
 	useEffect(() => {
 		let pipeTimerId: number | undefined;
 
-		if (gameHasStarted) {
+		if (gameHasStarted && !isPaused && !isGameOver) {
 			pipeTimerId = setInterval(() => {
 				setPipeLeft((p) => p - pipeSpeed);
 				setPipeLeft2((p) => p - pipeSpeed);
@@ -78,18 +81,31 @@ export default function App() {
 		return () => {
 			if (pipeTimerId) clearInterval(pipeTimerId);
 		};
-	}, [gameHasStarted]);
+	}, [gameHasStarted, isPaused, isGameOver]);
 
 	// Reset pipes when off screen and score when passing
 	useEffect(() => {
+		// keep consistent spacing by spawning off-screen to the right of the rightmost pipe
+		let nextPipeLeft = pipeLeft;
+		let nextPipeLeft2 = pipeLeft2;
 		if (pipeLeft < -pipeWidth) {
-			setPipeLeft(screenWidth);
+			const newX = Math.max(
+				screenWidth,
+				Math.max(pipeLeft, pipeLeft2) + pipeHorizontalGap
+			);
+			nextPipeLeft = newX;
+			setPipeLeft(newX);
 			setPipeBottom(
 				Math.floor(Math.random() * (screenHeight - gap - 200)) + 100
 			);
 		}
 		if (pipeLeft2 < -pipeWidth) {
-			setPipeLeft2(screenWidth);
+			const newX2 = Math.max(
+				screenWidth,
+				Math.max(nextPipeLeft, pipeLeft2) + pipeHorizontalGap
+			);
+			nextPipeLeft2 = newX2;
+			setPipeLeft2(newX2);
 			setPipeBottom2(
 				Math.floor(Math.random() * (screenHeight - gap - 200)) + 100
 			);
@@ -157,24 +173,32 @@ export default function App() {
 
 	// 4. The Jump Function
 	const jump = () => {
+		if (isGameOver || isPaused) return;
 		if (!gameHasStarted) {
 			setGameHasStarted(true);
-		} else {
-			// Move the bird UP
-			setBirdBottom((b) => b + jumpHeight);
-			setScore((s) => s + 1); // Fake score for fun
+			setIsPaused(false);
+			return;
 		}
+		// Move the bird UP
+		setBirdBottom((b) => b + jumpHeight);
+		setScore((s) => s + 1); // Fake score for fun
 	};
 
 	const restart = () => {
 		setIsGameOver(false);
+		setIsPaused(false);
 		setScore(0);
 		setBirdBottom(screenHeight / 2);
 		setPipeLeft(screenWidth);
-		setPipeLeft2(screenWidth + screenWidth / 2 + 100);
+		setPipeLeft2(screenWidth + pipeHorizontalGap);
 		setPipeBottom(randomBottom());
 		setPipeBottom2(randomBottom());
 		setGameHasStarted(false);
+	};
+
+	const togglePause = () => {
+		if (!gameHasStarted || isGameOver) return;
+		setIsPaused((prev) => !prev);
 	};
 
 	return (
@@ -186,10 +210,29 @@ export default function App() {
 					style={{
 						flex: 1,
 						width: screenWidth,
-						height: screenHeight * 0.85,
+						height: screenHeight * 0.8,
 						alignItems: "center",
 					}}
 				>
+					{/* Pause/Resume Button */}
+					{gameHasStarted && !isGameOver && (
+						<TouchableOpacity
+							onPress={togglePause}
+							style={{
+								position: "absolute",
+								top: 35,
+								left: 20,
+								padding: 8,
+							}}
+						>
+							<FontAwesome6
+								name={isPaused ? "play" : "pause"}
+								size={32}
+								color="white"
+							/>
+						</TouchableOpacity>
+					)}
+
 					{/* The Bird */}
 					<View
 						pointerEvents="none"
@@ -230,6 +273,22 @@ export default function App() {
 						style={{
 							position: "absolute",
 							width: pipeWidth,
+							height: capHeight,
+							left: pipeLeft,
+							bottom: pipeBottom,
+						}}
+					>
+						<Image
+							source={require("../assets/images/cap.png")}
+							resizeMode="stretch"
+							style={{ width: "100%", height: "100%" }}
+						/>
+					</View>
+					<View
+						pointerEvents="none"
+						style={{
+							position: "absolute",
+							width: pipeWidth,
 							height: screenHeight - (pipeBottom + gap),
 							left: pipeLeft,
 							top: 0,
@@ -253,6 +312,23 @@ export default function App() {
 					>
 						<Image
 							source={require("../assets/images/pipe.png")}
+							resizeMode="stretch"
+							style={{ width: "100%", height: "100%" }}
+						/>
+					</View>
+					<View
+						pointerEvents="none"
+						style={{
+							position: "absolute",
+							width: pipeWidth,
+							height: capHeight,
+							left: pipeLeft,
+							top: screenHeight - (pipeBottom + gap) - capHeight,
+							transform: [{ rotate: "180deg" }],
+						}}
+					>
+						<Image
+							source={require("../assets/images/cap.png")}
 							resizeMode="stretch"
 							style={{ width: "100%", height: "100%" }}
 						/>
@@ -279,6 +355,22 @@ export default function App() {
 						style={{
 							position: "absolute",
 							width: pipeWidth,
+							height: capHeight,
+							left: pipeLeft2,
+							bottom: pipeBottom2,
+						}}
+					>
+						<Image
+							source={require("../assets/images/cap.png")}
+							resizeMode="stretch"
+							style={{ width: "100%", height: "100%" }}
+						/>
+					</View>
+					<View
+						pointerEvents="none"
+						style={{
+							position: "absolute",
+							width: pipeWidth,
 							height: screenHeight - (pipeBottom2 + gap),
 							left: pipeLeft2,
 							top: 0,
@@ -286,6 +378,23 @@ export default function App() {
 					>
 						<Image
 							source={require("../assets/images/pipe.png")}
+							resizeMode="stretch"
+							style={{ width: "100%", height: "100%" }}
+						/>
+					</View>
+					<View
+						pointerEvents="none"
+						style={{
+							position: "absolute",
+							width: pipeWidth,
+							height: capHeight,
+							left: pipeLeft2,
+							top: screenHeight - (pipeBottom2 + gap) - capHeight,
+							transform: [{ rotate: "180deg" }],
+						}}
+					>
+						<Image
+							source={require("../assets/images/cap.png")}
 							resizeMode="stretch"
 							style={{ width: "100%", height: "100%" }}
 						/>
@@ -356,7 +465,7 @@ export default function App() {
 					position: "absolute",
 					bottom: 0,
 					width: screenWidth,
-					height: screenHeight * 0.15,
+					height: screenHeight * 0.2,
 				}}
 			/>
 		</View>
