@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
 	Dimensions,
 	Image,
@@ -52,8 +52,10 @@ export default function App() {
 	const [pipeLeft, setPipeLeft] = useState(screenWidth);
 	const [pipeLeft2, setPipeLeft2] = useState(screenWidth + pipeHorizontalGap);
 
-	const randomBottom = () =>
-		Math.floor(Math.random() * (screenHeight - gap - 200)) + 100;
+	const randomBottom = useCallback(
+		() => Math.floor(Math.random() * (screenHeight - gap - 200)) + 100,
+		[screenHeight, gap]
+	);
 
 	const [pipeBottom, setPipeBottom] = useState(randomBottom());
 	const [pipeBottom2, setPipeBottom2] = useState(randomBottom());
@@ -128,22 +130,22 @@ export default function App() {
 	const playJumpSound = async () => {
 		try {
 			await jumpSound.current?.replayAsync();
-		} catch (e) {}
+		} catch {}
 	};
 	const playDieSound = async () => {
 		try {
 			await dieSound.current?.replayAsync();
-		} catch (e) {}
+		} catch {}
 	};
 	const playHitSound = async () => {
 		try {
 			await hitSound.current?.replayAsync();
-		} catch (e) {}
+		} catch {}
 	};
 	const playPointSound = async () => {
 		try {
 			await pointSound.current?.replayAsync();
-		} catch (e) {}
+		} catch {}
 	};
 
 	// 3. UPDATED GAME LOOP (Physics)
@@ -193,7 +195,6 @@ export default function App() {
 	// Reset pipes and scoring
 	useEffect(() => {
 		let nextPipeLeft = pipeLeft;
-		let nextPipeLeft2 = pipeLeft2;
 
 		if (pipeLeft < -pipeWidth) {
 			const newX = Math.max(
@@ -210,7 +211,6 @@ export default function App() {
 				screenWidth,
 				Math.max(nextPipeLeft, pipeLeft2) + pipeHorizontalGap
 			);
-			nextPipeLeft2 = newX2;
 			setPipeLeft2(newX2);
 			setPipeBottom2(randomBottom());
 			setPassed2(false);
@@ -228,7 +228,16 @@ export default function App() {
 			setScore((s) => s + 1);
 			playPointSound();
 		}
-	}, [pipeLeft, pipeLeft2, screenWidth, screenHeight, passed1, passed2]);
+	}, [
+		pipeLeft,
+		pipeLeft2,
+		screenWidth,
+		screenHeight,
+		passed1,
+		passed2,
+		pipeHorizontalGap,
+		randomBottom,
+	]);
 
 	// Collision detection
 	useEffect(() => {
@@ -271,13 +280,19 @@ export default function App() {
 		pipeBottom2,
 		screenWidth,
 		screenHeight,
+		gap,
 	]);
 
 	useEffect(() => {
 		if (isGameOver) {
-			handleGameOver();
+			playDieSound();
+			if (score > bestScore) {
+				setBestScore(score);
+				saveBestScore(score);
+			}
+			setShowBestModal(true);
 		}
-	}, [isGameOver]);
+	}, [isGameOver, score, bestScore]);
 
 	useEffect(() => {
 		if (showBestModal && gameHasStarted && !isGameOver) {
@@ -327,15 +342,6 @@ export default function App() {
 	const togglePause = () => {
 		if (!gameHasStarted || isGameOver) return;
 		setIsPaused((prev) => !prev);
-	};
-
-	const handleGameOver = () => {
-		playDieSound();
-		if (score > bestScore) {
-			setBestScore(score);
-			saveBestScore(score);
-		}
-		setShowBestModal(true);
 	};
 
 	const resetScore = async ({
@@ -488,11 +494,17 @@ export default function App() {
 						isGameOver={isGameOver}
 						onRequestClose={() => {
 							if (isGameOver) restart();
-							else {setShowBestModal(false); setIsPaused(false);}
+							else {
+								setShowBestModal(false);
+								setIsPaused(false);
+							}
 						}}
 						onTap={() => {
 							if (isGameOver) restart();
-							else {setShowBestModal(false); setIsPaused(false);}
+							else {
+								setShowBestModal(false);
+								setIsPaused(false);
+							}
 						}}
 						score={score}
 						bestScore={bestScore}
