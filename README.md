@@ -1,51 +1,77 @@
-# Welcome to your Expo app 👋
+# 🐦 Flappy Bird Clone (React Native + Expo)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+![Platform - Android](https://img.shields.io/badge/Platform-Android-green)
+![Framework](https://img.shields.io/badge/Built%20With-React%20Native%20%7C%20Expo-blue)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
-## Get started
+A mobile recreation of the classic Flappy Bird game, built using **React Native** and the **Expo SDK**. This project demonstrates game loop logic, collision detection, and local data persistence on Android devices.
 
-1. Install dependencies
+> **📱 Compatibility Note:** This release is currently optimized and tested for **Android** only.
 
-   ```bash
-   npm install
-   ```
+## 📸 Screenshots
 
-2. Start the app
+| Start Screen | Gameplay | Game Over |
+|:---:|:---:|:---:|
+| <img src="./assets/ui/screenshot1.png" width="200" alt="Start Screen" /> | <img src="./assets/ui/screenshot2.png" width="200" alt="Gameplay" /> | <img src="./assets/ui/screenshot3.png" width="200" alt="Game Over" /> |
 
-   ```bash
-   npx expo start
-   ```
+## ✨ Features
 
-In the output, you'll find options to open the app in a
+* **Physics Engine:** Smooth gravity simulation and jump mechanics.
+* **Infinite Level:** Pipes generate randomly and infinitely as you progress.
+* **Collision Detection:** Pixel-perfect detection between the bird, pipes, and the ground.
+* **High Score System:** Uses `AsyncStorage` to save your best score locally on the device.
+* **Audio:** Sound effects for jumping, scoring, and collisions.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 📥 Download & Play (APK)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+You don't need to run the code to play! You can download the Android App Bundle (APK) directly from the Releases page.
 
-## Get a fresh project
+1.  Go to the [Latest Release](https://github.com/VigneshHegde78/FlappyBird_with_RN/releases) page.
+2.  Download the `FlappyBird-v1.0.0.apk` file.
+3.  Install it on your Android device.
 
-When you're ready, run:
+## 🛠️ Tech Stack
 
-```bash
-npm run reset-project
-```
+* **Core:** React Native
+* **Tooling:** Expo (SDK 50+)
+* **State Management:** React Hooks (`useState`, `useEffect`)
+* **Storage:** `@react-native-async-storage/async-storage`
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🚀 Running Locally
 
-## Learn more
+If you want to view the source code or run it in development mode, follow these steps:
 
-To learn more about developing your project with Expo, look at the following resources:
+### Prerequisites
+* Node.js installed.
+* **Expo Go** app installed on your Android phone.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Installation
 
-## Join the community
+1.  **Clone the repository**
+    ```bash
+    git clone [https://github.com/VigneshHegde78/FlappyBird_with_RN.git](https://github.com/VigneshHegde78/FlappyBird_with_RN.git)
+    cd YOUR-REPO-NAME
+    ```
 
-Join our community of developers creating universal apps.
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-# FlappyBird_with_RN
+3.  **Start the development server**
+    ```bash
+    npx expo start
+    ```
+
+4.  **Run on Android**
+    * Scan the QR code appearing in the terminal using the **Expo Go** app on your Android phone.
+    * OR press `a` in the terminal to run on an Android Emulator.
+
+## 📂 Project Structure
+
+```text
+/assets          # Images (bird, pipes, background) and Sounds
+/components      # Reusable UI components (Bird, Pipe, Score)
+/utils           # Constants (Dimensions, Colors)
+App.js           # Main Entry Point
+app.json         # Expo Configuration
