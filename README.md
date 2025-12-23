@@ -50,7 +50,7 @@ If you want to view the source code or run it in development mode, follow these 
 1.  **Clone the repository**
     ```bash
     git clone [https://github.com/VigneshHegde78/FlappyBird_with_RN.git](https://github.com/VigneshHegde78/FlappyBird_with_RN.git)
-    cd YOUR-REPO-NAME
+    cd FlappyBird_with_RN
     ```
 
 2.  **Install dependencies**
