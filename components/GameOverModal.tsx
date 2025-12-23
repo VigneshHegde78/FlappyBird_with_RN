@@ -88,7 +88,7 @@ export function GameOverModal({
 								}}
 							/>
 						)}
-						{score < bestScore && score > 0 && (
+						{score < bestScore && score >= bestScore/2 && (
 							<Image
 								source={require("../assets/images/m2.png")}
 								resizeMode="contain"
@@ -101,7 +101,7 @@ export function GameOverModal({
 								}}
 							/>
 						)}
-						{score < bestScore && score === 0 && (
+						{score < bestScore/2 && score >= 0 && (
 							<Image
 								source={require("../assets/images/m3.png")}
 								resizeMode="contain"
@@ -121,7 +121,7 @@ export function GameOverModal({
 								flexDirection: "row",
 								gap: 2,
 								position: "absolute",
-								top: 118,
+								top: 62,
 								right: 45,
 							}}
 						>
@@ -143,7 +143,7 @@ export function GameOverModal({
 								flexDirection: "row",
 								gap: 2,
 								position: "absolute",
-								top: 62,
+								top: 118,
 								right: 45,
 							}}
 						>
@@ -159,7 +159,13 @@ export function GameOverModal({
 							/>
 						</View>
 
-						<View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-start" }}>
+						<View
+							style={{
+								flexDirection: "row",
+								alignItems: "center",
+								justifyContent: "flex-start",
+							}}
+						>
 							<TouchableOpacity
 								onPress={() => onResetScore({ score, bestScore })}
 								activeOpacity={0.7}
